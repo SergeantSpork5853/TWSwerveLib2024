@@ -1,0 +1,27 @@
+{
+  "Configs": [
+    {
+      "Description": "Custom parameters",
+      "Name": "Custom Params",
+      "Ordinal": 0,
+      "Sort": 0,
+      "Type": "",
+      "Values": {
+        "Custom Param 0": 0,
+        "Custom Param 1": 0
+      }
+    },
+    {
+      "Description": "Configs related to how to handle the magnet position and interpretation.",
+      "Name": "Magnet Configs",
+      "Ordinal": 0,
+      "Sort": 0,
+      "Type": "",
+      "Values": {
+        "Magnet Offset": 0.0,
+        "Sensor Direction": false,
+        "Sensor Range": 0
+      }
+    }
+  ]
+}

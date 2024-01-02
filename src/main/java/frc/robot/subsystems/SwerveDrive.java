@@ -143,6 +143,8 @@ public class SwerveDrive extends SubsystemBase
       if(debugMode)
         {
           SmartDashboard.putNumber("Raw Gyro Angle", gyro.getAngle());
+
+          SmartDashboard.putNumber("Test PositionFR", frontRight.getTestPostion());
         
           SmartDashboard.putNumber("SwerveModuleAngle/frontLeft", frontLeft.getAngle()); 
           SmartDashboard.putNumber("SwerveModuleAngle/frontRight", frontRight.getAngle()); 

@@ -7,6 +7,7 @@ package frc.robot.subsystems;
 import com.ctre.phoenix6.hardware.CANcoder;
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.signals.NeutralModeValue;
+import com.ctre.phoenix6.BaseStatusSignal;
 import com.ctre.phoenix6.controls.MotionMagicVoltage;
 import com.ctre.phoenix6.controls.VelocityVoltage;
 
@@ -164,8 +165,11 @@ public class SwerveModule extends SubsystemBase
         } 
        else 
           {
+            //System.out.println("speed" + driveSpeed);
             steeringMotor.setControl(new MotionMagicVoltage(target)); 
             driveMotor.setControl(new VelocityVoltage(driveSpeed));
+            //driveMotor.set(driveSpeed);
+            
           }
        
   }
@@ -176,6 +180,9 @@ public class SwerveModule extends SubsystemBase
 */
 public double getVelocityMetersPerSecond()
   { 
+    //driveMotor.getRotorVelocity().refresh();
+    //driveMotor.getAcceleration().refresh();
+    //return (BaseStatusSignal.getLatencyCompensatedValue(driveMotor.getRotorVelocity(), driveMotor.getAcceleration()) / gearRatio) * SwerveConstants.WHEEL_CIRCUMFERENCE;
     return (driveMotor.getRotorVelocity().getValueAsDouble() / gearRatio) * SwerveConstants.WHEEL_CIRCUMFERENCE;
   } 
 
@@ -187,6 +194,9 @@ public double getVelocityMetersPerSecond()
 */
 public double getAngle()
   { 
+    //steeringEncoder.getPosition().refresh();
+    //steeringEncoder.getVelocity().refresh();
+    //return BaseStatusSignal.getLatencyCompensatedValue(steeringEncoder.getPosition(), steeringEncoder.getVelocity()) * 360;
     return steeringEncoder.getPosition().getValueAsDouble() * 360;
   } 
 
@@ -229,6 +239,9 @@ public void normalizeModule()
  */ 
 public double getDistance() 
   {  
+    //driveMotor.getRotorPosition().refresh(); 
+    //driveMotor.getRotorVelocity().refresh();
+    //return (BaseStatusSignal.getLatencyCompensatedValue(driveMotor.getRotorPosition(), driveMotor.getRotorVelocity()) / gearRatio) * SwerveConstants.WHEEL_CIRCUMFERENCE;
     return (driveMotor.getRotorPosition().getValueAsDouble() / gearRatio) * SwerveConstants.WHEEL_CIRCUMFERENCE;
   } 
 
@@ -241,6 +254,10 @@ public void brakeMode()
   { 
     driveMotor.setNeutralMode(NeutralModeValue.Brake);  
   } 
+
+public double getTestPostion(){
+  return driveMotor.getPosition().getValueAsDouble();
+}
 
 /**
  * Congfigure any settings that vary based on the type of swerve module used. 

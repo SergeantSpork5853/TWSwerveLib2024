@@ -8,6 +8,7 @@ import com.ctre.phoenix6.hardware.CANcoder;
 import com.ctre.phoenix6.hardware.TalonFX;
 import com.ctre.phoenix6.signals.NeutralModeValue;
 import com.ctre.phoenix6.BaseStatusSignal;
+import com.ctre.phoenix6.StatusSignal;
 import com.ctre.phoenix6.controls.MotionMagicVoltage;
 import com.ctre.phoenix6.controls.VelocityVoltage;
 
@@ -28,6 +29,11 @@ public class SwerveModule extends SubsystemBase
     private final TalonFX driveMotor; 
     private final TalonFX steeringMotor; 
     private final CANcoder steeringEncoder; 
+
+    private final StatusSignal<Double> steeringEncoderPosition;
+    private final StatusSignal<Double> steeringEncoderVelocity; 
+    private final StatusSignal<Double> driveMotorPosition;
+    private final StatusSignal<Double> driveMotorVelocity;
  
     //A value to store the stop angle passed in from the Swerve Module constructor
     private double stopAngle = 0;
@@ -65,6 +71,16 @@ public class SwerveModule extends SubsystemBase
       Preferences.initDouble(prefKey, offsets[steeringMotorID-ENCODER_BASE]);
       //Assign the stored offsets in Preferences to the swerve module
       offsets[steeringMotorID-ENCODER_BASE] =  Preferences.getDouble(prefKey, offsets[steeringMotorID-ENCODER_BASE]);
+      
+      steeringEncoderPosition = steeringEncoder.getPosition();
+
+      steeringEncoderVelocity = steeringEncoder.getVelocity();
+
+      driveMotorPosition = driveMotor.getRotorPosition();
+
+      driveMotorVelocity = driveMotor.getRotorVelocity();
+
+      BaseStatusSignal.waitForAll(0.1, steeringEncoderPosition, steeringEncoderVelocity, driveMotorPosition, driveMotorVelocity);
     } //End SwerveModule constructor
   
 
@@ -102,10 +118,8 @@ public class SwerveModule extends SubsystemBase
     {
       //Assign this internal SwerveModule state value the value of the desired state
       SwerveModuleState state = desiredState;      
-       /*  
-        * Convert the velocity component of the desiredState to rotor rotations per second
-        * TODO: sanity check units?
-       */
+      
+      //Convert the velocity component of the desiredState to rotor rotations per second
       double driveSpeed = (state.speedMetersPerSecond * gearRatio) / SwerveConstants.WHEEL_CIRCUMFERENCE;
       //The raw, unormalized value of the encoder angle sensor
       final double absolute = getAngle(); 
@@ -180,10 +194,9 @@ public class SwerveModule extends SubsystemBase
 */
 public double getVelocityMetersPerSecond()
   { 
-    //driveMotor.getRotorVelocity().refresh();
-    //driveMotor.getAcceleration().refresh();
-    //return (BaseStatusSignal.getLatencyCompensatedValue(driveMotor.getRotorVelocity(), driveMotor.getAcceleration()) / gearRatio) * SwerveConstants.WHEEL_CIRCUMFERENCE;
-    return (driveMotor.getRotorVelocity().getValueAsDouble() / gearRatio) * SwerveConstants.WHEEL_CIRCUMFERENCE;
+    BaseStatusSignal.refreshAll(driveMotorPosition, driveMotor.getAcceleration());
+    return (BaseStatusSignal.getLatencyCompensatedValue(driveMotorVelocity, driveMotor.getAcceleration()) / gearRatio) * SwerveConstants.WHEEL_CIRCUMFERENCE;
+    //return (driveMotor.getRotorVelocity().getValueAsDouble() / gearRatio) * SwerveConstants.WHEEL_CIRCUMFERENCE;
   } 
 
 /** 
@@ -194,10 +207,9 @@ public double getVelocityMetersPerSecond()
 */
 public double getAngle()
   { 
-    //steeringEncoder.getPosition().refresh();
-    //steeringEncoder.getVelocity().refresh();
-    //return BaseStatusSignal.getLatencyCompensatedValue(steeringEncoder.getPosition(), steeringEncoder.getVelocity()) * 360;
-    return steeringEncoder.getPosition().getValueAsDouble() * 360;
+    BaseStatusSignal.refreshAll(steeringEncoderPosition, steeringEncoderVelocity);
+    return BaseStatusSignal.getLatencyCompensatedValue(steeringEncoderPosition, steeringEncoderVelocity) * 360;
+    //return steeringEncoder.getPosition().getValueAsDouble() * 360;
   } 
 
 //Convert an angle in degrees to rotor rotations 
@@ -230,7 +242,7 @@ public void normalizeModule()
       offsets[steeringMotor.getDeviceID()-ENCODER_BASE] = getAngle();
       String prefKey = String.format("SwerveModule/Offset_%02d", steeringMotor.getDeviceID());
       Preferences.setDouble(prefKey, offsets[steeringMotor.getDeviceID()-ENCODER_BASE]);
-      System.out.printf("Normalized Module %d\n", steeringMotor.getDeviceID());
+      System.out.printf("Normalized Module %d\n", driveMotor.getDeviceID());
   }
 
 /** 
@@ -239,10 +251,9 @@ public void normalizeModule()
  */ 
 public double getDistance() 
   {  
-    //driveMotor.getRotorPosition().refresh(); 
-    //driveMotor.getRotorVelocity().refresh();
-    //return (BaseStatusSignal.getLatencyCompensatedValue(driveMotor.getRotorPosition(), driveMotor.getRotorVelocity()) / gearRatio) * SwerveConstants.WHEEL_CIRCUMFERENCE;
-    return (driveMotor.getRotorPosition().getValueAsDouble() / gearRatio) * SwerveConstants.WHEEL_CIRCUMFERENCE;
+    BaseStatusSignal.refreshAll(driveMotorPosition, driveMotorVelocity);
+    return (BaseStatusSignal.getLatencyCompensatedValue(driveMotorPosition, driveMotorVelocity) / gearRatio) * SwerveConstants.WHEEL_CIRCUMFERENCE;
+    //return (driveMotor.getRotorPosition().getValueAsDouble() / gearRatio) * SwerveConstants.WHEEL_CIRCUMFERENCE;
   } 
 
 /**
@@ -255,9 +266,6 @@ public void brakeMode()
     driveMotor.setNeutralMode(NeutralModeValue.Brake);  
   } 
 
-public double getTestPostion(){
-  return driveMotor.getPosition().getValueAsDouble();
-}
 
 /**
  * Congfigure any settings that vary based on the type of swerve module used. 

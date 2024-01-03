@@ -215,7 +215,7 @@ public class SwerveDrive extends SubsystemBase
   public Pose2d getPose()
     { 
       Pose2d pose = odometry.getPoseMeters();
-      return new Pose2d( pose.getX(), pose.getY(), Rotation2d.fromDegrees(getGyroAngle()) ); 
+      return new Pose2d( pose.getX(), pose.getY(), pose.getRotation()); 
     } 
 
   public void setModuleStates(SwerveModuleState[] states)

@@ -80,7 +80,7 @@ public class SwerveModule extends SubsystemBase
 
       driveMotorVelocity = driveMotor.getRotorVelocity();
 
-      BaseStatusSignal.waitForAll(0.1, steeringEncoderPosition, steeringEncoderVelocity, driveMotorPosition, driveMotorVelocity);
+      //BaseStatusSignal.waitForAll(0.1, steeringEncoderPosition, steeringEncoderVelocity, driveMotorPosition, driveMotorVelocity);
     } //End SwerveModule constructor
   
 
@@ -263,7 +263,7 @@ public double getDistance()
 */ 
 public void brakeMode()
   { 
-    driveMotor.setNeutralMode(NeutralModeValue.Brake);  
+    driveMotor.setNeutralMode(NeutralModeValue.Coast);  
   } 
 
 

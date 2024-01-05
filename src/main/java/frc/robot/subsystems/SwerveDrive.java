@@ -31,6 +31,7 @@ public class SwerveDrive extends SubsystemBase
   SwerveDriveKinematics kinematics; //A kinematics object used by the odometry object to determine wheel locations
   String moduleType; //The type of Swerve Module being utilized
   boolean debugMode = false; //Whether or not to enable debug features (DISABLE FOR COMPETITIONS)
+  private boolean useStopAngle = false; //Command the wheels to a stop angle
 
   //Instantiate four Swerve Modules according to the class SwerveModule constructor
   private final SwerveModule frontLeft  = new SwerveModule(SwerveConstants.DRIVEFRONTLEFT, SwerveConstants.ROTATIONFRONTLEFT, SwerveConstants.ENCODERFRONTLEFT, 45); 
@@ -53,7 +54,7 @@ public class SwerveDrive extends SubsystemBase
    * The constructor for the swerve drive
    * @param maxVelocity The desired max velocity of the robot in meters per second
    * @param maxAngularSpeed The desired max angular speed of the robot in radians per second 
-   * @param moduleType Pass in "geared" for wcp gear swerve modules or "belted" for belted modules
+   * @param moduleType The module tyoe being used. Options: "geared flipped", "belted flipped"
    * @param kinematics A kinematics object containing the locations of each swerve module relative to robot center 
    */
   public SwerveDrive(double maxVelocity, double maxAngularSpeed, String moduleType, SwerveDriveKinematics kinematics) 
@@ -63,6 +64,7 @@ public class SwerveDrive extends SubsystemBase
       this.moduleType = moduleType; 
       this.kinematics = kinematics; 
       
+      //Reset the gyro sensor on initialization of the SwerveDrive subsystem
       resetGyro(); 
 
       //Using the moduleType passed in to the constructor, set the appropriate settings for the modules used.
@@ -83,7 +85,7 @@ public class SwerveDrive extends SubsystemBase
    * The constructor for the swerve drive for pathplanner use
    * @param maxVelocity The desired max velocity of the robot in meters per second
    * @param maxAngularSpeed The desired max angular speed of the robot in radians per second 
-   * @param moduleType Pass in "geared" for wcp gear swerve modules or "belted" for belted modules
+   * @param moduleType The module tyoe being used. Options: "geared flipped", "belted flipped"
    * @param kinematics A kinematics object containing the locations of each swerve module relative to robot center 
    * @param config PID constants and other settings for autonomous driving
    */
@@ -94,6 +96,7 @@ public class SwerveDrive extends SubsystemBase
       this.moduleType = moduleType; 
       this.kinematics = kinematics; 
       
+      //Reset the gyro sensor on initialization of the SwerveDrive subsystem
       resetGyro(); 
 
       //Using the moduleType passed in to the constructor, set the appropriate settings for the modules used.
@@ -108,11 +111,13 @@ public class SwerveDrive extends SubsystemBase
       */
       odometry = new SwerveDriveOdometry(kinematics, Rotation2d.fromDegrees(getGyroAngle()), getSwerveModulePositions());
       
-      //A pathplanner AutoBuilder object for autonomous driving
+      //Initialize a PathPlanner AutoBuilder object for autonomous driving
       AutoBuilder.configureHolonomic(this::getPose, this::resetPose, this::getChassisSpeeds, this::driveRobotOriented, config, this);
   }
 
-  //Reset the gyro using NavX reset function and apply a user-specified adjustment to the angle
+  /**
+   * Reset the gyro using NavX reset function and apply a user-specified adjustment to the angle
+   */
   public void resetGyro()
   {
     if (gyro != null)
@@ -125,16 +130,16 @@ public class SwerveDrive extends SubsystemBase
   @Override 
   public void periodic() 
     {
-
       //Periodically update the swerve odometry
       updateOdometry(); 
 
-      //Normalize the modules when the normalize switch is pressed
+      //Normalize the modules when the normalize switch is pressed (DIO switches are ACTIVE LOW)
       if(!normalizeSwitch.get())
         {
           normalizeModules();
         }
-      //Reset the odometry readings when reset odometry switch is pressed
+
+      //Reset the odometry readings when reset odometry switch is pressed (DIO switches are ACTIVE LOW)
       if(!resetOdometry.get())
         {
           zeroPose();
@@ -170,15 +175,17 @@ public class SwerveDrive extends SubsystemBase
         }
     }
 
-  //Stop all swerve modules by setting their speeds to 0
+  /**
+   * Stop all swerve modules by setting their speeds to 0
+   */
   public void stop()
     {
       drive(0.0, 0.0, 0.0, false);
     } 
 
-  public void driveRobotOriented(ChassisSpeeds robotRelativeSpeeds)
+  //Drive the robot with the robot's front always being forward
+  private void driveRobotOriented(ChassisSpeeds robotRelativeSpeeds)
   {
-
     SwerveModuleState[] targetStates = kinematics.toSwerveModuleStates(robotRelativeSpeeds);
     setModuleStates(targetStates);
   }
@@ -200,33 +207,48 @@ public class SwerveDrive extends SubsystemBase
       setModuleStates(swerveModuleStates);
     }
 
-  public void updateOdometry()
+  //Update the odometry values using the latest reported SwerveModule postitions and robot heading
+  private void updateOdometry()
     { 
        odometry.update( Rotation2d.fromDegrees(getGyroAngle()), getSwerveModulePositions());
     }
 
-
+  /**
+   * Set a starting location other than the defualt (x=0,y=0,rotation=0)
+   * @param pose a Pose2d with a location (x,y) and a rotation in radians 
+   */
   public void setStartLocation(Pose2d pose) 
     {
       gyro.setAngleAdjustment(pose.getRotation().getDegrees() - getGyroAngle());
       odometry.resetPosition(Rotation2d.fromDegrees(getGyroAngle()), getSwerveModulePositions(), getPose());
     }  
 
+  /**
+   * Get the robots current pose
+   * @return The pose of the robot as a Pose2d
+   */
   public Pose2d getPose()
     { 
       Pose2d pose = odometry.getPoseMeters();
       return new Pose2d( pose.getX(), pose.getY(), pose.getRotation()); 
     } 
 
-  public void setModuleStates(SwerveModuleState[] states)
+  /* 
+   * Command each swerve module to a SwerveModuleState (velocity and angle) based on an array of states passed in.
+   * The first state in the array will correspond to the state to be applied to the first module
+   * and so on.
+   */ 
+  private void setModuleStates(SwerveModuleState[] states)
     { 
-      frontLeft.setDesiredState(states[0], parkingBrake);
-      frontRight.setDesiredState(states[1], parkingBrake); 
-      backLeft.setDesiredState(states[2], parkingBrake);
-      backRight.setDesiredState(states[3], parkingBrake);
+      frontLeft.setDesiredState(states[0], useStopAngle);
+      frontRight.setDesiredState(states[1], useStopAngle); 
+      backLeft.setDesiredState(states[2], useStopAngle);
+      backRight.setDesiredState(states[3], useStopAngle);
     }
 
-  public SwerveModulePosition[] getSwerveModulePositions() 
+  
+  //Get the rotation and distance of each swerve module as an array of SwerveModulePositions
+  private SwerveModulePosition[] getSwerveModulePositions() 
     {
       return new SwerveModulePosition[] 
         {
@@ -237,7 +259,8 @@ public class SwerveDrive extends SubsystemBase
         };
     }
 
-  public SwerveModuleState[] getSwerveModuleStates()
+  //Get the rotation and velocity of each swerve module as an array of SwerveModulePositions
+  private SwerveModuleState[] getSwerveModuleStates()
   {
     return new SwerveModuleState[] 
         {
@@ -248,20 +271,24 @@ public class SwerveDrive extends SubsystemBase
         };
   }
 
+  //Zero out the pose of the robot to a location of x=0, y=0, and rotation = 0 
   public void zeroPose()
     {
       System.out.println("resetting pose");
       odometry.resetPosition(Rotation2d.fromDegrees(getGyroAngle()), getSwerveModulePositions(), new Pose2d(0.0, 0.0, Rotation2d.fromDegrees(getGyroAngle())));
     }
 
+  //A Pose2d consumer required for PathPlanner
   public void resetPose(Pose2d pose)
   {
     odometry.resetPosition(Rotation2d.fromDegrees(getGyroAngle()), getSwerveModulePositions(), pose);
   }
 
+  //A getter of the robot's speed relative to itself
   public ChassisSpeeds getChassisSpeeds() {
     return kinematics.toChassisSpeeds(getSwerveModuleStates());
   }
+
   /*
    * Get the angle of the gyro. This angle is negated to reflect the fact that 
    * the code is expecting counterclockwise to be positive (critical for odometry).
@@ -275,7 +302,7 @@ public class SwerveDrive extends SubsystemBase
       return -gyro.getAngle();
     } 
  
-
+  //Put all swerve modules in brakemode
   public void brakeMode()
     { 
       frontLeft.brakeMode();
@@ -283,14 +310,14 @@ public class SwerveDrive extends SubsystemBase
       frontRight.brakeMode(); 
       backRight.brakeMode();
     }
-
-  private boolean parkingBrake = false; 
-
-  public void parkingBrake(boolean enabled)
+  
+  //Enable the "parking brake" feature of the robot (commanding the modules to an 45 degree angle)
+  public void enableStopAngle(boolean enabled)
     { 
-      parkingBrake = enabled; 
+      useStopAngle = enabled; 
     }
  
+  //Configure the angle offsets for each swerve module  
   private void normalizeModules()
     {
       frontLeft.normalizeModule();
